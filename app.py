@@ -45,34 +45,44 @@ if uploaded_file is None:
 # Load dataset
 # --------------------------------------------------
 data_df = pd.read_csv(uploaded_file)
+
+# Clean column names and string values
 data_df.columns = data_df.columns.str.strip()
+for col in data_df.select_dtypes(include="object").columns:
+    data_df[col] = data_df[col].str.strip()
 
 st.subheader("Dataset Preview")
 st.dataframe(data_df.head())
 
 # --------------------------------------------------
-# Check for target column safely
+# Detect target column robustly
 # --------------------------------------------------
-if "income" not in data_df.columns:
-    st.success("Dataset uploaded successfully. Using trained model for evaluation.")
+target_candidates = [
+    col for col in data_df.columns if col.strip().lower() == "income"
+]
+
+if len(target_candidates) == 0:
+    st.success("Dataset uploaded successfully.")
     st.warning(
-        "Target column 'income' not found in uploaded CSV. "
-        "Metrics and classification report are shown only when target is available."
+        "Target column 'income' not found in the uploaded CSV. "
+        "Metrics and classification report are shown only when the target column is available."
     )
     st.stop()
+
+target_col = target_candidates[0]
 
 # --------------------------------------------------
 # Prepare features and target
 # --------------------------------------------------
-features = data_df.drop(columns=["income"])
-target = data_df["income"].str.strip()
-target_binary = (target == ">50K").astype(int)
+features_df = data_df.drop(columns=[target_col])
+target_series = data_df[target_col]
+target_binary = (target_series == ">50K").astype(int)
 
 # --------------------------------------------------
 # Train-test split
 # --------------------------------------------------
 X_train, X_test, y_train, y_test = train_test_split(
-    features,
+    features_df,
     target_binary,
     test_size=0.2,
     random_state=42,
@@ -97,7 +107,7 @@ preprocessor = ColumnTransformer(
 # --------------------------------------------------
 st.subheader("Select Classification Model")
 
-model_name = st.selectbox(
+model_choice = st.selectbox(
     "Choose a model",
     [
         "Logistic Regression",
@@ -109,7 +119,7 @@ model_name = st.selectbox(
     ]
 )
 
-models = {
+model_dict = {
     "Logistic Regression": LogisticRegression(max_iter=1000),
     "Decision Tree": DecisionTreeClassifier(random_state=42),
     "k-NN": KNeighborsClassifier(n_neighbors=5),
@@ -127,32 +137,32 @@ models = {
     )
 }
 
-classifier = models[model_name]
+selected_model = model_dict[model_choice]
 
 # --------------------------------------------------
-# Pipeline
+# Build and train pipeline
 # --------------------------------------------------
-pipeline = Pipeline(
+model_pipeline = Pipeline(
     steps=[
         ("preprocessing", preprocessor),
-        ("model", classifier)
+        ("classifier", selected_model)
     ]
 )
 
-pipeline.fit(X_train, y_train)
+model_pipeline.fit(X_train, y_train)
 
 # --------------------------------------------------
 # Predictions
 # --------------------------------------------------
-y_pred = pipeline.predict(X_test)
-y_proba = pipeline.predict_proba(X_test)[:, 1]
+y_pred = model_pipeline.predict(X_test)
+y_proba = model_pipeline.predict_proba(X_test)[:, 1]
 
 # --------------------------------------------------
 # Metrics
 # --------------------------------------------------
-acc = accuracy_score(y_test, y_pred)
-prec = precision_score(y_test, y_pred)
-rec = recall_score(y_test, y_pred)
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
 f1 = f1_score(y_test, y_pred)
 auc = roc_auc_score(y_test, y_proba)
 mcc = matthews_corrcoef(y_test, y_pred)
@@ -161,15 +171,15 @@ mcc = matthews_corrcoef(y_test, y_pred)
 # Display metrics
 # --------------------------------------------------
 st.subheader("Model Evaluation Metrics")
-st.write(f"Accuracy: {acc:.4f}")
-st.write(f"Precision: {prec:.4f}")
-st.write(f"Recall: {rec:.4f}")
+st.write(f"Accuracy: {accuracy:.4f}")
+st.write(f"Precision: {precision:.4f}")
+st.write(f"Recall: {recall:.4f}")
 st.write(f"F1: {f1:.4f}")
 st.write(f"AUC: {auc:.4f}")
 st.write(f"MCC: {mcc:.4f}")
 
 # --------------------------------------------------
-# Classification Report
+# Classification report
 # --------------------------------------------------
 st.subheader("Classification Report")
 st.text(classification_report(y_test, y_pred))
