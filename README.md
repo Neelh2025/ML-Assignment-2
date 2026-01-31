@@ -48,6 +48,8 @@ Each model was evaluated using the following metrics:
 
 ## Observations on Model Performance
 
+During this assignment, I observed that ensemble models such as Random Forest and XGBoost performed better due to their ability to capture complex feature interactions.
+
 | Model | Observation |
 |------|-------------|
 | Logistic Regression | Logistic Regression provided a strong baseline performance with good overall accuracy and AUC. It performed well in distinguishing between income classes but showed moderate recall for the high-income class. |
